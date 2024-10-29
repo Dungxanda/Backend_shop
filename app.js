@@ -12,7 +12,11 @@ const path = require("path");
 // }));
 
 app.use(cors({
-  origin: '*', // Cho phép mọi nguồn gốc
+  origin: (origin, callback) => {
+    // Kiểm tra nếu không có origin hoặc origin được phép (cho phép mọi nguồn gốc)
+    callback(null, true);
+  },
+  credentials: true, // Cho phép gửi cookie, thông tin đăng nhập
 }));
 
 app.use(express.json());
