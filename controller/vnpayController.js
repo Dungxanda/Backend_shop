@@ -4,9 +4,7 @@ const querystring = require("qs");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const ErrorHandler = require("../utils/ErrorHandler");
 const moment = require('moment');
-
-// Cấu hình dotenv với đường dẫn tới file .env trong thư mục config
-require('dotenv').config({ path: './config/.env' });
+require('dotenv').config(); // Đọc các biến môi trường từ file .env (chỉ hoạt động khi chạy local)
 
 const router = express.Router();
 
@@ -19,11 +17,11 @@ router.post('/create_payment_url', function (req, res, next) {
     
     let ipAddr = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-    let config = require('config'); // Dùng để lấy thông tin từ file config
-    let tmnCode = config.get('vnp_TmnCode');
-    let secretKey = config.get('vnp_HashSecret');
-    let vnpUrl = config.get('vnp_Url');
-    let returnUrl = config.get('vnp_ReturnUrl');
+    // Sử dụng biến môi trường trực tiếp thay cho config.get
+    let tmnCode = process.env.VNP_TMNCODE;
+    let secretKey = process.env.VNP_HASHSECRET;
+    let vnpUrl = process.env.VNP_URL;
+    let returnUrl = process.env.VNP_RETURNURL;
     
     // Tạo mã đơn hàng dựa trên thời gian
     let orderId = moment(date).format('DDHHmmss');
@@ -58,9 +56,7 @@ router.post('/create_payment_url', function (req, res, next) {
     vnp_Params = sortObject(vnp_Params);
 
     // Tạo chữ ký bảo mật (vnp_SecureHash)
-    let querystring = require('qs');
     let signData = querystring.stringify(vnp_Params, { encode: false });
-    let crypto = require('crypto');
     let hmac = crypto.createHmac('sha512', secretKey);
     let signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
 
@@ -71,7 +67,6 @@ router.post('/create_payment_url', function (req, res, next) {
     vnpUrl += '?' + querystring.stringify(vnp_Params, { encode: false });
     
     // Chuyển hướng người dùng đến URL thanh toán của VNPay
-    // res.redirect(vnpUrl);
     res.status(200).json({
         success: true,
         paymentUrl: vnpUrl,
@@ -91,14 +86,11 @@ router.get('/vnpay_ipn', function (req, res, next) {
     delete vnp_Params['vnp_SecureHashType'];
 
     vnp_Params = sortObject(vnp_Params);
-    let config = require('config');
-    let secretKey = config.get('vnp_HashSecret');
+    let secretKey = process.env.VNP_HASHSECRET;
 
-    let querystring = require('qs');
     let signData = querystring.stringify(vnp_Params, { encode: false });
-    let crypto = require("crypto");     
     let hmac = crypto.createHmac("sha512", secretKey);
-    let signed = hmac.update(new Buffer(signData, 'utf-8')).digest("hex");     
+    let signed = hmac.update(Buffer.from(signData, 'utf-8')).digest("hex");     
 
     // Kiểm tra chữ ký có khớp không
     if (secureHash === signed) {
@@ -116,7 +108,6 @@ router.get('/vnpay_ipn', function (req, res, next) {
     }
 });
 
-
 // Xử lý Return URL
 router.get('/vnpay_return', function (req, res, next) {
     let vnp_Params = req.query;
@@ -131,13 +122,10 @@ router.get('/vnpay_return', function (req, res, next) {
     // Sắp xếp các tham số
     vnp_Params = sortObject(vnp_Params);
 
-    let config = require('config');
-    let secretKey = config.get('vnp_HashSecret');
+    let secretKey = process.env.VNP_HASHSECRET;
 
     // Tạo lại chữ ký từ các tham số nhận được để so sánh với SecureHash từ VNPay
-    let querystring = require('qs');
     let signData = querystring.stringify(vnp_Params, { encode: false });
-    let crypto = require("crypto");     
     let hmac = crypto.createHmac("sha512", secretKey);
     let signed = hmac.update(Buffer.from(signData, 'utf-8')).digest("hex");     
 
@@ -149,7 +137,6 @@ router.get('/vnpay_return', function (req, res, next) {
         res.render('success', {code: '97'}); // Chữ ký không khớp
     }
 });
-
 
 // Hàm sắp xếp tham số theo thứ tự alphabet
 function sortObject(obj) {
@@ -174,7 +161,6 @@ router.post('/verify_payment', function (req, res) {
     // Kiểm tra responseCode xem giao dịch có thành công không
     if (responseCode === '00') {
       // Giao dịch thành công, xử lý lưu vào cơ sở dữ liệu
-      // Ví dụ: cập nhật trạng thái đơn hàng trong cơ sở dữ liệu
       console.log(`Giao dịch ${transactionNo} của đơn hàng ${orderId} thành công.`);
       
       // Trả về thành công
@@ -183,6 +169,6 @@ router.post('/verify_payment', function (req, res) {
       // Giao dịch thất bại
       res.status(400).json({ success: false, message: 'Giao dịch thất bại' });
     }
-  });
+});
 
 module.exports = router;
